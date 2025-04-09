@@ -19,7 +19,7 @@ operadores = ['+','-','*','/','++','--','#','<','>','<<','>>','=','==','!=']
 delimitadores = [';',',','.']
 signos = ['{','}','(',')']
 
-with open('pruebaPython.cpp', 'r') as archivo:
+with open('martes.cpp', 'r') as archivo:
     contenido = archivo.read()
     tokens = re.findall(r'"[^"]*"|\'[^\']*\'|<<|>>|\+\+|--|==|\w+|[^\w\s]', contenido, re.UNICODE)
 
