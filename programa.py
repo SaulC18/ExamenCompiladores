@@ -42,7 +42,7 @@ class CodeEditor(QsciScintilla):
 class CompiladorVSCode(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Compilador - VSCode Style")
+        self.setWindowTitle("👾 Compilador ")
         self.setGeometry(100, 100, 1000, 800)
         
         # Contadores (los mismos de tu código original)
