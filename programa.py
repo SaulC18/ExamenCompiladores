@@ -10,23 +10,48 @@ from PyQt5.Qsci import QsciScintilla, QsciLexerCPP
 
 
 
-errores = []#para ir almacenando los errores y despues ponerlos en la parte de resultados al final
+errores = [] #para ir almacenando los errores y despues ponerlos en la parte de resultados al final
 
 
 #validaciones
 
-def variable_valida(nombre, ln_code, ln_err):#variable aceptable
+def variable_valida(nombre, ln_code, ln_err): #variable aceptable
     # Expresión regular para nombres de variables válidos
-    validacion = re.compile(r'^[a-zA-Z_]\w*$')#puede comenzar con letras o guin bajo y lo demas puede ser letras, guion bajo o nuemros
+    validacion = re.compile(r'^[a-zA-Z_]\w*$') #puede comenzar con letras o guin bajo y lo demas puede ser letras, guion bajo o nuemros
     
     #coincide la variable con la validacion?
-    if validacion.match(nombre):
-        return True
-    else:
+    if not validacion.match(nombre):
         errores.append(f"Error: La variable '{nombre}' es inválida en la linea: {ln_err}.")
-        return False
 
+def validar_cadenas(lineas):#para checar que una cadena se cierre
+    errores = [] #se van guardando los errores por si hay varios
+    en_string = False #para saber si esta dentro de un string
+    comilla_abierta = '' #guardar la comillla que se abrio " o '
+    linea_inicio = 0 #en que linea se abrio la cadena
 
+    for i, linea in enumerate(lineas, 1): #se recorre linea por linea
+        j = 0 #para recorrer caracter por caracter
+        while j < len(linea):
+            char = linea[j] #se consigue el caracter
+
+            if not en_string: #si aun no estamos en un string se checa si se abrio uno
+                if char in ('"', "'"): #se checa si comenzo con " o '
+                    comilla_abierta = char #se guarda el " o '
+                    en_string = True #ahora estamos dentro de un string por lo que ya no entarra a este if si no al else
+                    linea_inicio = i #se guarda la linea
+            else:
+                if char == comilla_abierta: #se checa que se este cerrando con un caracter igual
+                    if j == 0 or linea[j - 1] != '\\': #se checa que la comilla no este escapada para poder contarla como la finalizacion del strimng
+                        en_string = False #ya no esta en un string
+                        comilla_abierta = '' #se inicializa
+            j += 1 #cambia de caracter
+
+        #si no se ha cerrado el string
+        if en_string and not linea.rstrip().endswith('\\'): #si no se cerro la cadna checamos que no sea un string multilinea y eso se checa viendo si al final de la linea tenemos un slash invertido
+            errores.append(f"Error: Cadena no cerro, inicia en: {linea_inicio}") #si hay un error se añade a la lista de errores misma que se retronara al final
+            en_string = False #ya no esta en un string
+
+    return errores #se retorna lista de errores
 
 #esta clase simplemente crea la inetrfaz y la personaliza
 class CodeEditor(QsciScintilla):
@@ -112,7 +137,7 @@ class CompiladorVSCode(QMainWindow):
         """)
         
         #creacion de los botones
-        self.btn_abrir = QPushButton("📂 Abrir Archivo")#para que te redirija a la funcion abrir_archivo
+        self.btn_abrir = QPushButton("📂 Abrir Archivo") #para que te redirija a la funcion abrir_archivo
         self.btn_analizar = QPushButton("🔍 Analizar Código")
         self.btn_limpiar = QPushButton("🧹 Limpiar")
         
@@ -148,7 +173,7 @@ class CompiladorVSCode(QMainWindow):
         layout.addWidget(self.resultados)
         
         central_widget.setLayout(layout)
-        self.setCentralWidget(central_widget)#centra los objetos
+        self.setCentralWidget(central_widget) #centra los objetos
         
         #conexiones de botones con funciones o mas bien de la accion hacer click en un boton con cada funcion
         self.btn_abrir.clicked.connect(self.abrir_archivo)
@@ -161,20 +186,20 @@ class CompiladorVSCode(QMainWindow):
             QLabel { color: #d4d4d4; font-size: 11pt; }
         """)
 
-    def abrir_archivo(self):#sirve para que se abra el explorador de archivos y busques por tu cuenta el archivo, modificado para que pueda tambien aceptar archivos tipo .c
+    def abrir_archivo(self): #sirve para que se abra el explorador de archivos y busques por tu cuenta el archivo, modificado para que pueda tambien aceptar archivos tipo .c
         filepath, _ = QFileDialog.getOpenFileName(self, "Abrir archivo", "", "Archivos C/C++ (*.c *.cpp);;All Files (*)")
         if filepath:
-            with open(filepath, 'r', encoding='utf-8') as file:#se abre el archivo en mdoo r de lectura
-                self.editor.setText(file.read())#se llena el espacio para codigo con el codigo extraido del archivo
+            with open(filepath, 'r', encoding='utf-8') as file: #se abre el archivo en mdoo r de lectura
+                self.editor.setText(file.read()) #se llena el espacio para codigo con el codigo extraido del archivo
 
-    def analizar_codigo(self):#funcion principal del programa ya que es la que cuenta los tokens
-        codigo = self.editor.text()#obtiene el codigo que se escribio en el espacio para codigo
+    def analizar_codigo(self): #funcion principal del programa ya que es la que cuenta los tokens
+        codigo = self.editor.text() #obtiene el codigo que se escribio en el espacio para codigo
         if not codigo.strip():
-            QMessageBox.warning(self, "Advertencia", "No hay código para analizar")#si no consiguio nada de self.editor significa que no se cargo nada y se muestra un menjsae de error
+            QMessageBox.warning(self, "Advertencia", "No hay código para analizar") #si no consiguio nada de self.editor significa que no se cargo nada y se muestra un menjsae de error
             return
         
         #Reiniciar contadores
-        self.contRes = self.contVar = self.contVal = self.contOp = self.contDel = self.contSig = 0#por si se sube un  nuevo codigo o algo o bien se analiza de nuevo el codigo no se sumen a lo contado anteriormente
+        self.contRes = self.contVar = self.contVal = self.contOp = self.contDel = self.contSig = 0 #por si se sube un  nuevo codigo o algo o bien se analiza de nuevo el codigo no se sumen a lo contado anteriormente
         #inicializacion de conteo de llaves y parentesis
         llaves_abiertas = 0
         parentesis_abiertos = 0
@@ -196,14 +221,62 @@ class CompiladorVSCode(QMainWindow):
         
         #Generar HTML para colorear los resultados
         html_output = ""
-        errores.clear()  #limpia la lista de errores por la misma razon de los contadores
+        errores.clear() #limpia la lista de errores por la misma razon de los contadores
 
         #se checa el codigo linea por linea para saber en que linea se encuentran los errores de codigo
         lineas = codigo.split('\n')
+        errores.extend(validar_cadenas(lineas))#se manda a llamar la funcion que checa si hay cadenas sin cerrar
+        excepciones = ('if', 'for', 'while', 'switch', 'else')#cosas que en teoria no acaban en ;
         for numero_linea, linea in enumerate(lineas, 1):
-            # Procesar cada token de la línea
-            tokens_linea = re.findall(r'\w+|[^\w\s]', linea)  # Solo extraer palabras y símbolos, ignorando espacios
+
+
+            #Se checa que las lineas finalicen correctamente
+            linea_strip = linea.strip()#elimina espacios al principio y al final
+            if (linea_strip and not linea_strip.startswith('#') and not linea_strip.startswith('import') and 
+                not linea_strip.endswith('{') and not linea_strip.endswith('}')): #si es importacion, comentario o termian con llaves no se espera que tengan un ; al final
+                #si termina en ')' y no en ';'
+                if re.match(r'.*\)\s*$', linea_strip) and not linea_strip.endswith(';'):
+                    #se ignora solo si es una estructura de control como un if (las cuales manejaremos como excepciones) o posible declaración de función
+                    if any(linea_strip.startswith(e + '(') or linea_strip.startswith(e + ' ') for e in excepciones):
+                        pass
+                    elif re.match(r'^\w+\s+\w+\s*\(.*\)', linea_strip): #ejemplo: "string funcion_saludar(...)" o "void main(...)"
+                        pass
+                    else:
+                        errores.append(f"Error: Falta ; al final de la línea:{numero_linea}")
+                elif not linea_strip.endswith(';'):
+                    errores.append(f"Error: Falta ; al final de la línea:{numero_linea}")
+
+
+            #procesar cada token de la línea
+            tokens_linea = re.findall(r'\w+|[^\w\s]', linea)  #solo extraer palabras y símbolos, ignorando espacios
             
+            #validar las variables eliminando los strings ya que contaba las comillas por alguna razon como variables
+            linea_sin_strings = re.sub(r'".*?"|\'.*?\'', '', linea)
+            tokens_sin_strings = re.findall(r'\w+|[^\w\s]', linea_sin_strings)
+
+            for token_original, token_limpio in zip(tokens_linea, tokens_sin_strings):
+                if token_original not in self.reservadas:  # Si no es palabra reservada
+                    # validación de los demás tokens para su conteo
+                    if token_original in self.operadores:
+                        self.contOp += 1
+                        html_output += f'<span style="color: #ffff55;">{token_original}</span> '
+                    elif token_original in self.delimitadores:
+                        self.contDel += 1
+                        html_output += f'<span style="color: #ff55ff;">{token_original}</span> '
+                    elif token_original in self.signos:
+                        self.contSig += 1
+                        html_output += f'<span style="color: #55ffff;">{token_original}</span> '
+                    elif re.fullmatch(r'"[^"]*"|\'[^\']*\'|[-+]?\d*\.\d+|[-+]?\d+', token_original): #para valores (números o cadenas)
+                        self.contVal += 1
+                        html_output += f'<span style="color: #55ff55;">{token_original}</span> '
+                    else:
+                        self.contVar += 1  # se cuenta como variable
+                        variable_valida(token_limpio, linea, numero_linea) #usamos token limpio para la validación de variable
+                else:
+                    self.contRes += 1  #si es palabra reservada, se cuenta como reservada
+                    html_output += f'<span style="color: #ff5555;">{token_original}</span> '
+
+            """
             for token in tokens_linea:
                 #validar solo si es un token que no es una palabra reservada
                 if token not in self.reservadas: #si no es una palabra reservada
@@ -217,14 +290,19 @@ class CompiladorVSCode(QMainWindow):
                     elif token in self.signos:
                         self.contSig += 1
                         html_output += f'<span style="color: #55ffff;">{token}</span> '
-                    elif re.fullmatch(r'"[^"]*"|\'[^\']*\'|[-+]?\d*\.\d+|[-+]?\d+', token):  # Esto es para valores (números o cadenas)
+                    elif re.fullmatch(r'"[^"]*"|\'[^\']*\'|[-+]?\d*\.\d+|[-+]?\d+', token): #esto es para valores (números o cadenas)
                         self.contVal += 1
                         html_output += f'<span style="color: #55ff55;">{token}</span> '
-                    elif variable_valida(token, linea, numero_linea):#se llama la funcion y se manda el numero de linea
-                        self.contVar += 1  #contabilizar la variable válida
+                    else:
+                        
+                        self.contVar += 1 #se cuenta como variable
+                        variable_valida(token, linea, numero_linea)#se llama la funcion y se manda el numero de linea
+                        
                 else:
                     self.contRes += 1  # Si es palabra reservada, se cuenta como reservada
                     html_output += f'<span style="color: #ff5555;">{token}</span> '
+            """
+
 
             #chequeo de llaves y parentesis abiertos
             llaves_abiertas += linea.count('{')#se suma si se abre
@@ -245,34 +323,6 @@ class CompiladorVSCode(QMainWindow):
             errores.append(f"Error: Llaves no cerradas hasta la línea: {numero_linea}.")
         if parentesis_abiertos > 0:
             errores.append(f"Error: Paréntesis no cerrados hasta la línea: {numero_linea}.")
-
-
-        """
-        for token in tokens:#se recorre la lista de tokens
-            if token in self.reservadas:#si un elemento de la lista se encuentra en palanras reservadas el contador de estas se incrementa
-                self.contRes += 1
-                html_output += f'<span style="color: #ff5555;">{token}</span> '
-            elif token in self.valores or re.fullmatch(r'"[^"]*"|\'[^\']*\'|[-+]?\d*\.\d+|[-+]?\d+', token):
-                self.contVal += 1
-                html_output += f'<span style="color: #55ff55;">{token}</span> '
-            elif token in self.operadores:
-                self.contOp += 1
-                html_output += f'<span style="color: #ffff55;">{token}</span> '
-            elif token in self.delimitadores:
-                self.contDel += 1
-                html_output += f'<span style="color: #ff55ff;">{token}</span> '
-            elif token in self.signos:
-                self.contSig += 1
-                html_output += f'<span style="color: #55ffff;">{token}</span> '
-            elif variable_valida(token): #se comprueba si es una variable valida
-                self.contVar += 1
-                html_output += f'<span style="color: #5555ff;">{token}</span> '
-
-            ###
-            else:
-                self.contVar += 1#si no e sninguno de los otros cuenta como variable
-                html_output += f'<span style="color: #5555ff;">{token}</span> '
-            """    
         
         #mostrar resultados con formato HTML
         resumen = f"""
