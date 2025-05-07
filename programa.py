@@ -16,9 +16,9 @@ errores = [] #para ir almacenando los errores y despues ponerlos en la parte de 
 #validaciones
 
 def variable_valida(nombre, ln_code, ln_err): #variable aceptable
+    print(f"Validando: {nombre}")
     # Expresión regular para nombres de variables válidos
     validacion = re.compile(r'^[a-zA-Z_]\w*$') #puede comenzar con letras o guin bajo y lo demas puede ser letras, guion bajo o nuemros
-    
     #coincide la variable con la validacion?
     if not validacion.match(nombre):
         errores.append(f"Error: La variable '{nombre}' es inválida en la linea: {ln_err}.")
@@ -205,7 +205,16 @@ class CompiladorVSCode(QMainWindow):
         parentesis_abiertos = 0
         
         #Procesar tokens, en si esta linea hace bastantes cosas pero en si agarra del codigo todo lo que tiene valor
-        tokens = re.findall(r'"[^"]*"|\'[^\']*\'|<<|>>|\+\+|--|==|\w+|[^\w\s]', codigo, re.UNICODE)
+        tokens = re.findall(
+                    r'"[^"\n]*"|\'[^\'\n]*\'|'        # Strings
+                    r'-?\d+\.\d+|-?\d+|'              # Números
+                    r'\+\+|--|==|!=|<=|>=|<<|>>|'     # Operadores dobles
+                    r'[+\-*/#<>=]'                    # Operadores simples
+                    r'|[a-zA-Z_]\w*|'                 # Identificadores válidos
+                    r'[;:,.\[\]{}()\\]'               # Delimitadores y signos
+                    r'|[^\s]',                        # Cualquier otro caracter
+                    codigo
+                )
         """
         "[^"]*  -> todo lo que esta entre comillas (strings)
         '[^'/']* -> igual pero comillas simples el slash lo cambio porque si no es un simbolo de escape y no cuenta como comentario
@@ -248,33 +257,37 @@ class CompiladorVSCode(QMainWindow):
 
 
             #procesar cada token de la línea
-            tokens_linea = re.findall(r'\w+|[^\w\s]', linea)  #solo extraer palabras y símbolos, ignorando espacios
+            tokens_linea = re.findall(r'"[^"\n]*"|\'[^\'\n]*\'|'        # Strings
+                    r'-?\d+\.\d+|-?\d+|'              # Números
+                    r'\+\+|--|==|!=|<=|>=|<<|>>|'     # Operadores dobles
+                    r'[+\-*/#<>=]'                    # Operadores simples
+                    r'|[a-zA-Z_]\w*|'                 # Identificadores válidos
+                    r'[;:,.\[\]{}()\\]'               # Delimitadores y signos
+                    r'|[^\s]',   linea)  #solo extraer palabras y símbolos, ignorando espacios
             
             #validar las variables eliminando los strings ya que contaba las comillas por alguna razon como variables
-            linea_sin_strings = re.sub(r'".*?"|\'.*?\'', '', linea)
-            tokens_sin_strings = re.findall(r'\w+|[^\w\s]', linea_sin_strings)
-
-            for token_original, token_limpio in zip(tokens_linea, tokens_sin_strings):
-                if token_original not in self.reservadas:  # Si no es palabra reservada
-                    # validación de los demás tokens para su conteo
-                    if token_original in self.operadores:
-                        self.contOp += 1
-                        html_output += f'<span style="color: #ffff55;">{token_original}</span> '
-                    elif token_original in self.delimitadores:
-                        self.contDel += 1
-                        html_output += f'<span style="color: #ff55ff;">{token_original}</span> '
-                    elif token_original in self.signos:
-                        self.contSig += 1
-                        html_output += f'<span style="color: #55ffff;">{token_original}</span> '
-                    elif re.fullmatch(r'"[^"]*"|\'[^\']*\'|[-+]?\d*\.\d+|[-+]?\d+', token_original): #para valores (números o cadenas)
-                        self.contVal += 1
-                        html_output += f'<span style="color: #55ff55;">{token_original}</span> '
-                    else:
-                        self.contVar += 1  # se cuenta como variable
-                        variable_valida(token_limpio, linea, numero_linea) #usamos token limpio para la validación de variable
+            for token in tokens_linea:
+                if token in self.reservadas:
+                    self.contRes += 1
+                    html_output += f'<span style="color: #ff5555;">{token}</span> '
+                elif token in self.operadores:
+                    self.contOp += 1
+                    html_output += f'<span style="color: #ffff55;">{token}</span> '
+                elif token in self.delimitadores:
+                    self.contDel += 1
+                    html_output += f'<span style="color: #ff55ff;">{token}</span> '
+                elif token in self.signos:
+                    self.contSig += 1
+                    html_output += f'<span style="color: #55ffff;">{token}</span> '
+                elif re.fullmatch(r'"[^"]*"|\'[^\']*\'|[-+]?\d*\.\d+|[-+]?\d+', token):  # strings y números
+                    self.contVal += 1
+                    html_output += f'<span style="color: #55ff55;">{token}</span> '
+                elif re.fullmatch(r'[a-zA-Z_]\w*', token):  # variable válida
+                    self.contVar += 1
+                    html_output += f'<span style="color: #5f5f5f;">{token}</span> '
+                    variable_valida(token, linea, numero_linea)
                 else:
-                    self.contRes += 1  #si es palabra reservada, se cuenta como reservada
-                    html_output += f'<span style="color: #ff5555;">{token_original}</span> '
+                    errores.append(f"Error: La variable '{token}' contiene caracteres no válidos en la línea: {numero_linea}")
 
             """
             for token in tokens_linea:
