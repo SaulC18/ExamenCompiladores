@@ -13,10 +13,58 @@ from PyQt5.Qsci import QsciScintilla, QsciLexerCPP
 errores = [] #para ir almacenando los errores y despues ponerlos en la parte de resultados al final
 
 #para validaciones de datos, declaraciones etc
-tipos_validos = r"(?:void|bool|char|wchar_t|char8_t|char16_t|char32_t|short|int|long|float|double|size_t|ptrdiff_t|auto)"
+tipos_validos = r"(?:void|bool|char|wchar_t|char8_t|char16_t|char32_t|short|int|long|float|double|size_t|ptrdiff_t|auto|string)"
 
 #validaciones
-def validar_for(lineas):#fors aceptables
+
+def validar_declaraciones(lineas):
+    errores_decl = []
+
+    #expresión regular general para declaraciones con asignación
+    validacion = re.compile(
+        r'^\s*' #espacios opcionales al inicio
+        r'(' + tipos_validos + r')\s+' #tipo de dato valido
+        r'([a-zA-Z_]\w*)\s*=\s*' #nombre de variable
+        r'(.*?)' #valor asignado
+        r'\s*$', re.IGNORECASE
+    )
+
+    tipos_valores = { #para checar que el tipo del valor coincida con el tipo de la variable
+        #se checan igual las primeras 3 ya que son lo mismo
+        "int": r'^-?\d+$',
+        "short": r'^-?\d+$',
+        "long": r'^-?\d+$',
+        #punto entre valores
+        "float": r'^-?\d+\.\d+$',
+        "double": r'^-?\d+\.\d+$',
+        #debe tener comillas
+        "char": r"^'.{1}'$",
+        "string": r'^".*"$',
+        #booleanos
+        "bool": r'^(true|false)$',
+    }
+
+    for i, linea in enumerate(lineas, 1):
+        linea_strip = linea.strip()
+        if not linea_strip or linea_strip.startswith("//"):
+            continue #ignorar líneas vacías o comentarios ya que no tienen declaraciones
+
+        if any(linea_strip.startswith(estructura) for estructura in ["for", "if", "while"]):
+            continue #ignorar si es un for o un if o un switch ya que esos se checan en otra parte y porque saca error
+
+        if '=' in linea_strip:#si hay una declaracion en la linea
+            match = validacion.match(linea_strip)
+            if match:
+                tipo, _, valor = match.groups() #se separa el match para meterlo en las 3 variables y poder ver que el valor coincida con el tipo, el nombre de la variable no nos interesa asi que lo ignoramos con_
+                tipo_valor = tipos_valores.get(tipo) #se hbusca que coincida con el diccionario
+                if tipo_valor and not re.fullmatch(tipo_valor, valor.strip()):
+                    errores_decl.append(f"Error: El valor '{valor.strip()}' no es válido para el tipo '{tipo}' en la línea: {i}.")
+            else:
+                errores_decl.append(f"Error: Declaración inválida en la línea: {i}.")
+
+    return errores_decl
+
+def validar_for(lineas): #fors aceptables
 
     errores_for = [] #se van guardando los errores por si hay varios
     #expresión regular para validar fors 
@@ -289,6 +337,8 @@ class CompiladorVSCode(QMainWindow):
         errores.extend(validar_for(lineas))#se buscan los for mal hechos
 
         errores.extend(validar_if(lineas))#se buscan los if mal hechos
+
+        errores.extend(validar_declaraciones(lineas))#se buscan las malas declaraciones de variables
 
         #usa_std = any('using namespace std' in linea for linea in lineas)
         #uso_cout_cin = any(re.search(r'\b(cout|cin|endl)\b', linea) for linea in lineas)
