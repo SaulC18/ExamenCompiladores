@@ -10,4 +10,9 @@ int main(){
 			int hol@f
 
 			string saludo "hola
+			//comment
+	
+	/*
+	asdsdf
+	*/
 }

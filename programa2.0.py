@@ -210,6 +210,8 @@ class CompiladorVSCode(QMainWindow):
         llaves_abiertas = 0
         parentesis_abiertos = 0
         
+         # Estado para comentarios multilínea
+        en_comentario_multilinea = False
         errores.clear() #limpia la lista de errores por la misma razon de los contadores
 
         #se checa el codigo linea por linea para saber en que linea se encuentran los errores de codigo
@@ -223,6 +225,20 @@ class CompiladorVSCode(QMainWindow):
 
             #Se checa que las lineas finalicen correctamente
             linea_strip = linea.strip()#elimina espacios al principio y al final
+            if en_comentario_multilinea:
+                if '*/' in linea_strip:
+                    en_comentario_multilinea = False
+                continue
+            
+            if '/*' in linea_strip:
+                if '*/' not in linea_strip:
+                    en_comentario_multilinea = True
+                continue
+                
+            linea_limpia = re.sub(r'//.*|#.*', '', linea_strip).strip()
+            if not linea_limpia:
+                continue
+            
             if (linea_strip and not linea_strip.startswith('#') and not linea_strip.startswith('import') and 
                 not linea_strip.endswith('{') and not linea_strip.endswith('}')): #si es importacion, comentario o termian con llaves no se espera que tengan un ; al final
                 #si termina en ')' y no en ';'
