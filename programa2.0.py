@@ -97,6 +97,7 @@ class CompiladorVSCode(QMainWindow):
         self.setWindowTitle("👾 Compilador ")
         self.setGeometry(100, 100, 1000, 800)
         
+        self.caracteres_repetidos = [';', ',', '.', '(', ')', '{', '}']
         #contadores para registrar el numero de tokens de cada clase
         self.contRes = self.contVar = self.contVal = self.contOp = self.contDel = self.contSig = 0
         self.reservadas = [
@@ -239,6 +240,15 @@ class CompiladorVSCode(QMainWindow):
             if not linea_limpia:
                 continue
             
+            for char in self.caracteres_repetidos:
+                if char*2 in linea_limpia:  # Busca dos caracteres iguales seguidos
+                    # Excepciones para casos válidos como ::, ->, etc.
+                    if not (char == ':' and '::' in linea_limpia) and \
+                    not (char == '-' and '->' in linea_limpia) and \
+                    not (char == '*' and '/*' in linea_strip) and \
+                    not (char == '*' and '*/' in linea_strip):
+                        errores.append(f"Error: Carácter '{char}' repetido en línea {numero_linea}")
+
             if (linea_strip and not linea_strip.startswith('#') and not linea_strip.startswith('import') and 
                 not linea_strip.endswith('{') and not linea_strip.endswith('}')): #si es importacion, comentario o termian con llaves no se espera que tengan un ; al final
                 #si termina en ')' y no en ';'
