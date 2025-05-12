@@ -339,13 +339,7 @@ class CompiladorVSCode(QMainWindow):
         errores.extend(validar_if(lineas))#se buscan los if mal hechos
 
         errores.extend(validar_declaraciones(lineas))#se buscan las malas declaraciones de variables
-
-        #usa_std = any('using namespace std' in linea for linea in lineas)
-        #uso_cout_cin = any(re.search(r'\b(cout|cin|endl)\b', linea) for linea in lineas)
-
-        #if uso_cout_cin and not usa_std:
-        #    errores.append("Error: Se utilizan elementos del espacio de nombres 'std' sin declarar 'using namespace std;'.")
-        #std_identificadores = ['cout', 'cin', 'endl', 'cerr', 'clog']
+      
         usa_namespace_std = any('using namespace std' in linea for linea in lineas)
 
         # Lista de identificadores que requieren std si no hay using
