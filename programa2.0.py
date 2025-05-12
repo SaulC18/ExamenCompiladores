@@ -128,6 +128,25 @@ class CompiladorVSCode(QMainWindow):
         ]
         self.delimitadores = [';',',','.']
         self.signos = ['{','}','(',')']
+        self.librerias_metodos = {
+            'stdio.h': ['printf', 'scanf', 'fopen', 'fclose', 'fread', 'fwrite', 'fseek', 'ftell', 
+                        'fprintf', 'fscanf', 'sprintf', 'sscanf', 'getchar', 'putchar', 'gets', 'puts',
+                        'perror', 'remove', 'rename', 'tmpfile', 'tmpnam', 'setvbuf', 'setbuf', 'fflush'],
+            'stdlib.h': ['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort', 'atexit', 'system',
+                        'atoi', 'atof', 'atol', 'strtol', 'strtoul', 'rand', 'srand', 'qsort', 'bsearch',
+                        'abs', 'labs', 'div', 'ldiv'],
+            'string.h': ['strcpy', 'strncpy', 'strcat', 'strncat', 'strcmp', 'strncmp', 'strchr',
+                        'strrchr', 'strstr', 'strtok', 'strlen', 'strerror', 'memcpy', 'memmove',
+                        'memcmp', 'memchr', 'memset'],
+            'math.h': ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'sinh', 'cosh', 'tanh',
+                    'exp', 'log', 'log10', 'pow', 'sqrt', 'ceil', 'floor', 'fabs', 'ldexp', 'frexp',
+                    'modf', 'fmod'],
+            'iostream': ['cin', 'cout', 'cerr', 'clog', 'endl', 'flush', 'ws', 'hex', 'dec', 'oct'],
+            'vector': ['vector', 'push_back', 'pop_back', 'size', 'empty', 'clear', 'begin', 'end'],
+            # Puedes agregar más librerías y sus métodos aquí
+        }
+
+        self.librerias_incluidas = set()  # Para rastrear qué librerías se han incluido
 
         #creacion del area donde se pone el codigo ditor de código
         self.editor = CodeEditor()
@@ -209,6 +228,7 @@ class CompiladorVSCode(QMainWindow):
         #inicializacion de conteo de llaves y parentesis
         llaves_abiertas = 0
         parentesis_abiertos = 0
+        self.librerias_incluidas.clear()
         
         errores.clear() #limpia la lista de errores por la misma razon de los contadores
 
@@ -218,11 +238,36 @@ class CompiladorVSCode(QMainWindow):
         errores_cadenas, lineas = validar_cadenas(lineas)#se manda a llamar la funcion que checa si hay cadenas sin cerrar
         errores.extend(errores_cadenas)#se añaden las lineas de error que se encontraron
 
+        #usa_std = any('using namespace std' in linea for linea in lineas)
+        #uso_cout_cin = any(re.search(r'\b(cout|cin|endl)\b', linea) for linea in lineas)
+
+        #if uso_cout_cin and not usa_std:
+        #    errores.append("Error: Se utilizan elementos del espacio de nombres 'std' sin declarar 'using namespace std;'.")
+        #std_identificadores = ['cout', 'cin', 'endl', 'cerr', 'clog']
+        usa_namespace_std = any('using namespace std' in linea for linea in lineas)
+
+        # Lista de identificadores que requieren std si no hay using
+        std_identificadores = ['cout', 'cin', 'endl', 'cerr', 'clog']
+
         excepciones = ('if', 'for', 'while', 'switch', 'else')#cosas que en teoria no acaban en ;
         for numero_linea, linea in enumerate(lineas, 1):
-
+            for identificador in std_identificadores:
+                # si no hay using y se usa cout sin std::cout
+                if not usa_namespace_std and re.search(rf'\b{identificador}\b', linea) and f'std::{identificador}' not in linea:
+                    errores.append(f"Error: Se usa '{identificador}' sin 'std::' y sin 'using namespace std;' en la línea {numero_linea}.")
+            
             #Se checa que las lineas finalicen correctamente
             linea_strip = linea.strip()#elimina espacios al principio y al final
+            if linea_strip.startswith('#include'):
+                # Extraer el nombre de la librería
+                match = re.search(r'#include\s*[<"](.+?)[>"]', linea_strip)
+                if match:
+                    libreria = match.group(1)
+                    if libreria in self.librerias_metodos:
+                        self.librerias_incluidas.add(libreria)
+                    else:
+                        errores.append(f"Advertencia: Librería '{libreria}' no reconocida en línea {numero_linea}")
+            
             if (linea_strip and not linea_strip.startswith('#') and not linea_strip.startswith('import') and 
                 not linea_strip.endswith('{') and not linea_strip.endswith('}')): #si es importacion, comentario o termian con llaves no se espera que tengan un ; al final
                 #si termina en ')' y no en ';'
@@ -254,6 +299,17 @@ class CompiladorVSCode(QMainWindow):
 
 
             for token in tokens_linea:
+                # Verificar si es un método de librería no incluida
+                metodo_no_incluido = False
+                for libreria, metodos in self.librerias_metodos.items():
+                    if token in metodos and libreria not in self.librerias_incluidas:
+                        errores.append(f"Error: Función '{token}' requiere librería '{libreria}' no incluida (línea {numero_linea})")
+                        metodo_no_incluido = True
+                        break
+                
+                if metodo_no_incluido:
+                    continue  # Saltar este token para evitar contarlo como variable
+                    
                 if token not in self.reservadas:  # Si no es palabra reservada
                     # validación de los demás tokens para su conteo
                     if token in self.operadores:
