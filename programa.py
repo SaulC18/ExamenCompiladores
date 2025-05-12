@@ -69,15 +69,16 @@ def validar_for(lineas): #fors aceptables
     errores_for = [] #se van guardando los errores por si hay varios
     #expresión regular para validar fors 
     validacion = re.compile(
-    r'for\s*\(\s*' #for(
-    r'(?:' + tipos_validos + r'\s+)?' #tipo el cual puede ser opcional ya que la variable se puede declarar antes
-    r'(?:[a-zA-Z_]\w*\s*=\s*[^;]*)?' #cariable = valor opcional tambien porque en si puede esgtar vacio el campo
-    r'\s*;\s*' #;
-    r'(?:[^;]*)?' #condición opcional
-    r'\s*;\s*' #;
-    r'(?:[^;]*)?' #incremento opcional
-    r'\s*\)\s*\{', #) y la llave de apertura {
-    re.IGNORECASE)
+        r'for\s*\(\s*' #for(
+        r'(?:' + tipos_validos + r'\s+)?' #tipo el cual puede ser opcional ya que la variable se puede declarar antes
+        r'(?:[a-zA-Z_]\w*\s*=\s*[^;]*)?' #cariable = valor opcional tambien porque en si puede esgtar vacio el campo
+        r'\s*;\s*' #;
+        r'(?:[^;]*)?' #condición opcional
+        r'\s*;\s*' #;
+        r'(?:[^;]*)?' #incremento opcional
+        r'\s*\)\s*\{', #) y la llave de apertura {
+        re.IGNORECASE
+    )
 
     for i, linea in enumerate(lineas, 1): #se recorre linea por linea comenzando en el 1
         linea_strip = linea.strip()
@@ -323,6 +324,7 @@ class CompiladorVSCode(QMainWindow):
         #inicializacion de conteo de llaves y parentesis
         llaves_abiertas = 0
         parentesis_abiertos = 0
+        self.librerias_incluidas.clear()
         
         #Estado para comentarios multilínea
         en_comentario_multilinea = False
@@ -420,6 +422,17 @@ class CompiladorVSCode(QMainWindow):
 
 
             for token in tokens_linea:
+                # Verificar si es un método de librería no incluida
+                metodo_no_incluido = False
+                for libreria, metodos in self.librerias_metodos.items():
+                    if token in metodos and libreria not in self.librerias_incluidas:
+                        errores.append(f"Error: Función '{token}' requiere librería '{libreria}' no incluida en la línea {numero_linea}")
+                        metodo_no_incluido = True
+                        break
+                
+                if metodo_no_incluido:
+                    continue  # Saltar este token para evitar contarlo como variable
+
                 if token not in self.reservadas:  # Si no es palabra reservada
                     # validación de los demás tokens para su conteo
                     if token in self.operadores:
