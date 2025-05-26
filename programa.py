@@ -178,6 +178,61 @@ def validar_cadenas(lineas):#para checar que una cadena se cierre
 
     return errores, lineas #se retorna lista de errores
 
+def validar_main(lineas):
+    errores_main = []   #Lista para almacenar errores encontrados en la declaración de main
+    conteo_main_validos = 0  # Contador de declaraciones válidas de main
+
+    validacion_main = re.compile(
+        r'^\s*(int|void)\s+main\s*\(\s*(int\s+\w+\s*,\s*char\s*\*\s*\w+\[\])?\s*\)\s*\{?\s*$'
+    )
+
+    for i, linea in enumerate(lineas, 1):
+        if 'main' in linea:
+            if validacion_main.match(linea.strip()):
+                conteo_main_validos += 1
+                if conteo_main_validos > 1:
+                    errores_main.append(f"Error: Declaración duplicada de la función 'main' en la línea {i}.")
+            else:
+                errores_main.append(f"Error: Declaración inválida de la función 'main' en la línea {i}.")
+
+    # Si no se encontró ninguna declaración válida
+    if conteo_main_validos == 0:
+        errores_main.append("Error: No se encontró una función 'main' válida.")
+
+    return errores_main
+
+def validar_printf(lineas):
+    errores_printf = []
+    # printf correctamente escrito con paréntesis y punto y coma
+    validacion_printf = re.compile(
+        r'^\s*printf\s*\(\s*"[^"]*"(?:\s*,\s*[^)]*)?\s*\)\s*;\s*$'
+    )
+
+    for i, linea in enumerate(lineas, 1):
+        linea_strip = linea.strip()
+
+        # Detección de errores ortográficos comunes como print, prinf, prntf, pritnf
+        if 'print' in linea_strip or 'prinf' in linea_strip or 'prntf' in linea_strip or 'pritnf' in linea_strip or 'ptinf' in linea_strip or 'prinft' in linea_strip:
+            if 'printf' not in linea_strip:
+                errores_printf.append(f"Error: ¿Quisiste decir 'printf'? Revisión de posible error ortográfico en la línea {i}.")
+
+        # Validación de sintaxis correcta del printf
+        if 'printf' in linea_strip:
+            if not validacion_printf.match(linea_strip):
+                # Revisión específica para ayudar al usuario a saber qué falta
+                if not linea_strip.endswith(';'):
+                    errores_printf.append(f"Error: Falta ';' al final del printf en la línea {i}.")
+                elif ')' not in linea_strip:
+                    errores_printf.append(f"Error: Falta paréntesis de cierre ')' en printf en la línea {i}.")
+                elif '(' not in linea_strip:
+                    errores_printf.append(f"Error: Falta paréntesis de apertura '(' en printf en la línea {i}.")
+                elif '"' not in linea_strip:
+                    errores_printf.append(f"Error: Falta cadena de texto entre comillas en printf en la línea {i}.")
+                else:
+                    errores_printf.append(f"Error: Uso inválido de 'printf' en la línea {i}.")
+
+    return errores_printf
+
 #esta clase simplemente crea la inetrfaz y la personaliza
 class CodeEditor(QsciScintilla):
     def __init__(self):
@@ -371,6 +426,10 @@ class CompiladorVSCode(QMainWindow):
         errores.extend(validar_if(lineas))#se buscan los if mal hechos
 
         errores.extend(validar_declaraciones(lineas))#se buscan las malas declaraciones de variables
+
+        errores.extend(validar_main(lineas))
+
+        errores.extend(validar_printf(lineas))
       
         usa_namespace_std = any('using namespace std' in linea for linea in lineas)
 
