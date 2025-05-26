@@ -26,7 +26,8 @@ def validar_declaraciones(lineas):
         r'(' + tipos_validos + r')\s+' #tipo de dato valido
         r'([a-zA-Z_]\w*)\s*=\s*' #nombre de variable
         r'(.*?)' #valor asignado
-        r'\s*$', re.IGNORECASE
+        r'\s*;\s*$', #checamos que tenga punto y coma al final para que en si no lo tome como parte del valor
+        re.IGNORECASE
     )
 
     tipos_valores = { #para checar que el tipo del valor coincida con el tipo de la variable
