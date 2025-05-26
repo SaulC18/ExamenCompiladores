@@ -16,6 +16,48 @@ errores = [] #para ir almacenando los errores y despues ponerlos en la parte de 
 tipos_validos = r"(?:void|bool|char|wchar_t|char8_t|char16_t|char32_t|short|int|long|float|double|size_t|ptrdiff_t|auto|string)"
 
 #validaciones
+def validar_librerias(lineas):
+    errores = []
+    # Librerías válidas (puedes agregar más)
+    librerias_validas = {
+        # C++ Standard Libraries
+        "iostream", "vector", "string", "map", "set", "algorithm",
+        "fstream", "sstream", "iomanip", "limits", "queue", "stack",
+        "list", "deque", "bitset", "array", "unordered_map", "unordered_set",
+        # C Standard Libraries
+        "stdio.h", "stdlib.h", "math.h", "time.h", "ctype.h", "string.h",
+        "stdbool.h", "stdint.h", "errno.h", "locale.h",
+        # C++11 and later
+        "thread", "mutex", "future", "atomic", "condition_variable",
+    }
+    
+    include_pattern = re.compile(r'#include\s*[<"](\w+(\.\w+)*)[>"]')
+    
+    seccion_includes = True
+    
+    for i, linea in enumerate(lineas, 1):
+        linea_strip = linea.strip()
+        
+        # Ignorar líneas vacías o comentarios
+        if not linea_strip or linea_strip.startswith("//"):
+            continue
+        
+        if seccion_includes:
+            if linea_strip.startswith("#include"):
+                match = include_pattern.fullmatch(linea_strip)
+                if not match:
+                    errores.append(f"Error: Línea {i}, sintaxis incorrecta en la inclusión: {linea_strip}")
+                else:
+                    libreria = match.group(1)
+                    if libreria not in librerias_validas:
+                        errores.append(f"Error: Línea {i}, librería '{libreria}' no es válida.")
+            else:
+                seccion_includes = False
+        else:
+            if linea_strip.startswith("#include"):
+                errores.append(f"Error: Línea {i}, include fuera de la sección inicial.")
+    
+    return errores
 
 def validar_declaraciones(lineas):
     errores_decl = []
