@@ -8,7 +8,7 @@ from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtCore import Qt
 from PyQt5.Qsci import QsciScintilla, QsciLexerCPP
 
-
+variables = {} #diccionario para guardar las variables y su tipo, ver si ya estan declaradas y verr que valor se les podria asignar
 
 errores = [] #para ir almacenando los errores y despues ponerlos en la parte de resultados al final
 
@@ -23,45 +23,73 @@ def validar_declaraciones(lineas):
     #expresión regular general para declaraciones con asignación
     validacion = re.compile(
         r'^\s*' #espacios opcionales al inicio
-        r'(' + tipos_validos + r')\s+' #tipo de dato valido
+        r'(' + tipos_validos + r')\s+' #tipo de dato válido
         r'([a-zA-Z_]\w*)\s*=\s*' #nombre de variable
         r'(.*?)' #valor asignado
-        r'\s*;\s*$', #checamos que tenga punto y coma al final para que en si no lo tome como parte del valor
+        r'\s*;\s*$', #checamos que tenga punto y coma al final
+        re.IGNORECASE
+    )
+
+    #expresión regular para asignaciones sin tipo (ya declaradas)
+    asignacion = re.compile(
+        r'^\s*([a-zA-Z_]\w*)\s*=\s*(.*?)\s*;\s*$',
         re.IGNORECASE
     )
 
     tipos_valores = { #para checar que el tipo del valor coincida con el tipo de la variable
-        #se checan igual las primeras 3 ya que son lo mismo
         "int": r'^-?\d+$',
         "short": r'^-?\d+$',
         "long": r'^-?\d+$',
-        #punto entre valores
         "float": r'^-?\d+\.\d+$',
         "double": r'^-?\d+\.\d+$',
-        #debe tener comillas
         "char": r"^'.{1}'$",
         "string": r'^".*"$',
-        #booleanos
         "bool": r'^(true|false)$',
     }
 
     for i, linea in enumerate(lineas, 1):
         linea_strip = linea.strip()
         if not linea_strip or linea_strip.startswith("//"):
-            continue #ignorar líneas vacías o comentarios ya que no tienen declaraciones
+            continue #ignorar líneas vacías o comentarios
 
         if any(linea_strip.startswith(estructura) for estructura in ["for", "if", "while"]):
             continue #ignorar si es un for o un if o un switch ya que esos se checan en otra parte y porque saca error
 
-        if '=' in linea_strip:#si hay una declaracion en la linea
+        if '=' in linea_strip: #si hay una declaracion en la linea
             match = validacion.match(linea_strip)
             if match:
-                tipo, _, valor = match.groups() #se separa el match para meterlo en las 3 variables y poder ver que el valor coincida con el tipo, el nombre de la variable no nos interesa asi que lo ignoramos con_
+                tipo, nom_var, valor = match.groups() #se separa el match
                 tipo_valor = tipos_valores.get(tipo) #se hbusca que coincida con el diccionario
+
+                if nom_var in variables:
+                    errores_decl.append(f"Error: La variable '{nom_var}' ya fue declarada. Línea: {i}.")
+                    continue
+
                 if tipo_valor and not re.fullmatch(tipo_valor, valor.strip()):
                     errores_decl.append(f"Error: El valor '{valor.strip()}' no es válido para el tipo '{tipo}' en la línea: {i}.")
+                else:
+                    variables[nom_var] = {"tipo": tipo, "valor": valor} #guardar variable si todo está bien
+
+            #puede que ya este declarada asi que se checa con la expresion para asignaciones ya declaradas
             else:
-                errores_decl.append(f"Error: Declaración inválida en la línea: {i}.")
+                match_asig = asignacion.match(linea_strip)
+                if match_asig:
+                    nom_var, valor = match_asig.groups()
+                    valor = valor.strip()
+
+                    if nom_var not in variables:
+                        errores_decl.append(f"Error: La variable '{nom_var}' no ha sido declarada. Línea: {i}.")
+                        continue
+
+                    tipo = variables[nom_var]["tipo"]
+                    tipo_valor = tipos_valores.get(tipo)
+
+                    if tipo_valor and not re.fullmatch(tipo_valor, valor):
+                        errores_decl.append(f"Error: El valor '{valor}' no es válido para el tipo '{tipo}' en la línea: {i}.")
+                    else:
+                        variables[nom_var]["valor"] = valor #actualizar valor si es válido
+                else:
+                    errores_decl.append(f"Error: Declaración/asignación inválida en la línea: {i}.")
 
     return errores_decl
 
@@ -330,6 +358,7 @@ class CompiladorVSCode(QMainWindow):
         #Estado para comentarios multilínea
         en_comentario_multilinea = False
         errores.clear() #limpia la lista de errores por la misma razon de los contadores
+        variables.clear()#limpio las variables que se guardaron
 
         #se checa el codigo linea por linea para saber en que linea se encuentran los errores de codigo
         lineas = codigo.split('\n')
