@@ -316,13 +316,14 @@ def validar_printf(lineas):
         linea_strip = linea.strip()
 
         # Detección de errores ortográficos comunes como print, prinf, prntf, pritnf
-        if 'print' in linea_strip or 'prinf' in linea_strip or 'prntf' in linea_strip or 'pritnf' in linea_strip or 'ptinf' in linea_strip or 'prinft' in linea_strip:
+        if 'print' in linea_strip or 'prinf' in linea_strip or 'prntf' in linea_strip or 'pritnf' in linea_strip or 'ptinf' in linea_strip or 'prinft' in linea_strip or 'prnt' in linea_strip or 'pr' in linea_strip or 'prn' in linea_strip or 'pnt' in linea_strip:
             if 'printf' not in linea_strip:
                 errores_printf.append(f"Error: ¿Quisiste decir 'printf'? Revisión de posible error ortográfico en la línea {i}.")
 
         # Validación de sintaxis correcta del printf
         if 'printf' in linea_strip:
-            if not validacion_printf.match(linea_strip):
+            linea_sin_comentario = re.sub(r'//.*|#.*', '', linea_strip).strip()
+            if not validacion_printf.match(linea_sin_comentario):
                 # Revisión específica para ayudar al usuario a saber qué falta
                 if not linea_strip.endswith(';'):
                     errores_printf.append(f"Error: Falta ';' al final del printf en la línea {i}.")
@@ -574,33 +575,34 @@ class CompiladorVSCode(QMainWindow):
                     en_comentario_multilinea = True
                 continue
                 
-            linea_limpia = re.sub(r'//.*|#.*', '', linea_strip).strip()
-            if not linea_limpia:
+            # Verificar primero si falta ;
+            sin_comentario = re.sub(r'//.*|#.*', '', linea_strip).strip()
+            if not sin_comentario:
                 continue
-            
+
             for char in self.caracteres_repetidos:
-                if char*2 in linea_limpia:  # Busca dos caracteres iguales seguidos
-                    # Excepciones para casos válidos como ::, ->, etc.
-                    if not (char == ':' and '::' in linea_limpia) and \
-                    not (char == '-' and '->' in linea_limpia) and \
+                if char*2 in sin_comentario:  # Busca dos caracteres iguales seguidos
+                    if not (char == ':' and '::' in sin_comentario) and \
+                    not (char == '-' and '->' in sin_comentario) and \
                     not (char == '*' and '/*' in linea_strip) and \
                     not (char == '*' and '*/' in linea_strip):
                         errores.append(f"Error: Carácter '{char}' repetido en línea {numero_linea}")
 
+            if (sin_comentario and not sin_comentario.startswith('#') and not sin_comentario.startswith('import') and 
+                not sin_comentario.endswith('{') and not sin_comentario.endswith('}')):
 
-            if (linea_strip and not linea_strip.startswith('#') and not linea_strip.startswith('import') and 
-                not linea_strip.endswith('{') and not linea_strip.endswith('}')): #si es importacion, comentario o termian con llaves no se espera que tengan un ; al final
-                #si termina en ')' y no en ';'
-                if re.match(r'.*\)\s*$', linea_strip) and not linea_strip.endswith(';'):
-                    #se ignora solo si es una estructura de control como un if (las cuales manejaremos como excepciones) o posible declaración de función
-                    if any(linea_strip.startswith(e + '(') or linea_strip.startswith(e + ' ') for e in excepciones):
+                if re.match(r'.*\)\s*$', sin_comentario) and not sin_comentario.endswith(';'):
+                    if any(sin_comentario.startswith(e + '(') or sin_comentario.startswith(e + ' ') for e in excepciones):
                         pass
-                    elif re.match(r'^\w+\s+\w+\s*\(.*\)', linea_strip): #ejemplo: "string funcion_saludar(...)" o "void main(...)"
+                    elif re.match(r'^\w+\s+\w+\s*\(.*\)', sin_comentario):
                         pass
                     else:
                         errores.append(f"Error: Falta ; al final de la línea:{numero_linea}")
-                elif not linea_strip.endswith(';'):
+                elif not sin_comentario.endswith(';'):
                     errores.append(f"Error: Falta ; al final de la línea:{numero_linea}")
+
+            # Una vez validado correctamente, usa la versión sin comentario para análisis posterior
+            #linea_limpia = sin_comentario
 
             tokens_linea = re.findall(r'"[^"]*"|\'[^\']*\'|<<|>>|\+\+|--|==|\w+|[^\w\s]', linea_strip, re.UNICODE)
             print(tokens_linea)
