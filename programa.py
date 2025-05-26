@@ -195,7 +195,7 @@ def validar_main(lineas):
             else:
                 errores_main.append(f"Error: Declaración inválida de la función 'main' en la línea {i}.")
 
-    # Si no se encontró ninguna declaración válida
+    #Si no se encontró ninguna declaración válida
     if conteo_main_validos == 0:
         errores_main.append("Error: No se encontró una función 'main' válida.")
 
@@ -203,7 +203,7 @@ def validar_main(lineas):
 
 def validar_printf(lineas):
     errores_printf = []
-    # printf correctamente escrito con paréntesis y punto y coma
+    # rintf correctamente escrito con paréntesis y punto y coma
     validacion_printf = re.compile(
         r'^\s*printf\s*\(\s*"[^"]*"(?:\s*,\s*[^)]*)?\s*\)\s*;\s*$'
     )
@@ -211,15 +211,15 @@ def validar_printf(lineas):
     for i, linea in enumerate(lineas, 1):
         linea_strip = linea.strip()
 
-        # Detección de errores ortográficos comunes como print, prinf, prntf, pritnf
+        #Detección de errores ortográficos comunes como print, prinf, prntf, pritnf
         if 'print' in linea_strip or 'prinf' in linea_strip or 'prntf' in linea_strip or 'pritnf' in linea_strip or 'ptinf' in linea_strip or 'prinft' in linea_strip:
             if 'printf' not in linea_strip:
                 errores_printf.append(f"Error: ¿Quisiste decir 'printf'? Revisión de posible error ortográfico en la línea {i}.")
 
-        # Validación de sintaxis correcta del printf
+        #Validación de sintaxis correcta del printf
         if 'printf' in linea_strip:
             if not validacion_printf.match(linea_strip):
-                # Revisión específica para ayudar al usuario a saber qué falta
+                #Revisión específica para ayudar al usuario a saber qué falta
                 if not linea_strip.endswith(';'):
                     errores_printf.append(f"Error: Falta ';' al final del printf en la línea {i}.")
                 elif ')' not in linea_strip:
