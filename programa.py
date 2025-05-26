@@ -15,7 +15,49 @@ errores = [] #para ir almacenando los errores y despues ponerlos en la parte de 
 #para validaciones de datos, declaraciones etc
 tipos_validos = r"(?:void|bool|char|wchar_t|char8_t|char16_t|char32_t|short|int|long|float|double|size_t|ptrdiff_t|auto|string)"
 
-#validaciones
+def validar_librerias(codigo):
+    # Lista de librerías estándar válidas
+    librerias_estandar = {
+        "iostream", "vector", "string", "map", "set", "algorithm",
+        "fstream", "sstream", "iomanip", "limits", "queue", "stack",
+        "list", "deque", "bitset", "array", "unordered_map", "unordered_set",
+        "stdio.h", "stdlib.h", "math.h", "time.h", "ctype.h", "string.h",
+        "stdbool.h", "stdint.h", "errno.h", "locale.h",
+        "thread", "mutex", "future", "atomic", "condition_variable",
+    }
+
+    lineas = codigo.strip().split('\n')
+    errores = []
+
+    for i, linea in enumerate(lineas):
+        linea = linea.strip()
+
+        # Ignora líneas vacías o que no empiezan con '#'
+        if not linea or not linea.startswith('#'):
+            break
+
+        # Checar que sea exactamente '#include'
+        if not linea.startswith("#include"):
+            if linea.startswith("#includ") or re.match(r"#incl.*", linea):
+                errores.append(f"Línea {i+1}: Error ortográfico en la palabra clave '#include'.")
+            else:
+                errores.append(f"Línea {i+1}: Directiva desconocida.")
+            continue
+
+        # Validar sintaxis del include
+        match = re.match(r'#include\s*([<"])([^>"]+)[>"]', linea)
+        if match:
+            tipo, nombre = match.groups()
+            if tipo == '<':  # estándar
+                if nombre not in librerias_estandar:
+                    errores.append(f"Línea {i+1}: La librería '<{nombre}>' no es una librería estándar reconocida.")
+            elif tipo == '"':  # local
+                if nombre in librerias_estandar:
+                    errores.append(f"Línea {i+1}: La librería estándar '{nombre}' debe ir entre signos de menor y mayor que, no entre comillas.")
+        else:
+            errores.append(f"Línea {i+1}: Sintaxis incorrecta en la directiva #include.")
+
+    return errores
 
 def validar_declaraciones(lineas):
     errores_decl = []
@@ -490,6 +532,8 @@ class CompiladorVSCode(QMainWindow):
         errores.extend(validar_if(lineas))#se buscan los if mal hechos
 
         errores.extend(validar_while(lineas))#se buscan los if mal hechos
+
+        errores.extend(validar_librerias(codigo))
 
         errores.extend(validar_main(lineas))
 
