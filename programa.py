@@ -52,7 +52,7 @@ def validar_declaraciones(lineas):
         if not linea_strip or linea_strip.startswith("//"):
             continue #ignorar líneas vacías o comentarios
 
-        if any(linea_strip.startswith(estructura) for estructura in ["for", "if", "while"]):
+        if any(linea_strip.startswith(estructura) for estructura in ["for", "if", "while", "switch"]):
             continue #ignorar si es un for o un if o un switch ya que esos se checan en otra parte y porque saca error
 
         if '=' in linea_strip: #si hay una declaracion en la linea
@@ -94,27 +94,63 @@ def validar_declaraciones(lineas):
     return errores_decl
 
 def validar_for(lineas): #fors aceptables
-
     errores_for = [] #se van guardando los errores por si hay varios
-    #expresión regular para validar fors 
+
     validacion = re.compile(
         r'for\s*\(\s*' #for(
-        r'(?:' + tipos_validos + r'\s+)?' #tipo el cual puede ser opcional ya que la variable se puede declarar antes
-        r'(?:[a-zA-Z_]\w*\s*=\s*[^;]*)?' #cariable = valor opcional tambien porque en si puede esgtar vacio el campo
-        r'\s*;\s*' #;
-        r'(?:[^;]*)?' #condición opcional
-        r'\s*;\s*' #;
-        r'(?:[^;]*)?' #incremento opcional
-        r'\s*\)\s*\{', #) y la llave de apertura {
+        r'(?:(' + tipos_validos + r')\s+)?' #tipo opcional
+        r'([a-zA-Z_]\w*)\s*=\s*([^;]*?)\s*;\s*' #var = valor
+        r'([^;]*?)\s*;\s*' #condición
+        r'([^)]*?)\s*\)\s*\{', #incremento
         re.IGNORECASE
     )
+
+    tipos_valores = { #para checar que el tipo del valor coincida con el tipo de la variable
+        "int": r'^-?\d+$',
+        "short": r'^-?\d+$',
+        "long": r'^-?\d+$',
+        "float": r'^-?\d+\.\d+$',
+        "double": r'^-?\d+\.\d+$',
+        "char": r"^'.{1}'$",
+        "string": r'^".*"$',
+        "bool": r'^(true|false)$',
+    }
 
     for i, linea in enumerate(lineas, 1): #se recorre linea por linea comenzando en el 1
         linea_strip = linea.strip()
         if linea_strip.startswith("for"): #solo analiza si comienza con for
-            if not validacion.match(linea_strip):
+            m = validacion.match(linea_strip)
+            if not m:
                 errores_for.append(f"Error: La expresión for es incorrecta en la línea: {i}.")
-    
+                continue
+
+            type, var, val, cond, incre = m.groups() #se separa el match
+
+            if type: #es declaración
+                if var in variables:
+                    errores_for.append(f"Error: La variable '{var}' ya fue declarada. Línea :{i}.")
+                elif not re.fullmatch(tipos_valores.get(type, r'.*'), val.strip()):
+                    errores_for.append(f"Error: El valor '{val.strip()}' no es válido para '{type}' (línea {i}).")
+                else:
+                    variables[var] = {"tipo": type, "valor": val}
+            else: #si en si no hay un tipo entonces significa que usamos una variable ya declarada y estamos haciendo una asignacion
+                if var not in variables:
+                    errores_for.append(f"Error: La variable '{var}' no ha sido declarada (línea {i}).")
+                else:
+                    tipo_var = variables[var]["tipo"]
+                    if not re.fullmatch(tipos_valores.get(tipo_var, r'.*'), val.strip()):
+                        errores_for.append(f"Error: Tipo incompatible en asignación a '{var}' (línea {i}).")
+                    else:
+                        variables[var]["valor"] = val
+
+            def checar_uso(expr):#se checa la parte del incremento
+                for token in re.findall(r'\b[a-zA-Z_]\w*\b', expr):
+                    if token not in variables and token not in ["true","false"]:
+                        errores_for.append(f"Error: La variable '{token}' no ha sido declarada. Línea: {i}.")
+            checar_uso(cond) #se checa si en la parte de condicion del for se uso una variable no valida
+            checar_uso(incre) #se checa lo mismo pero con la parte del incremento
+
+
     return errores_for
 
 def validar_if(lineas):#para validar los if
@@ -122,20 +158,46 @@ def validar_if(lineas):#para validar los if
 
     validacion = re.compile(
         r'if\s*\(\s*('
-        r'[a-zA-Z_]\w*' #solo una variable
-        r'(\s*(==|!=|<=|>=|<|>)\s*[^(){};]+)?' #posible comparación
-        r'(\s*(\&\&|\|\|)\s*[a-zA-Z_]\w*(\s*(==|!=|<=|>=|<|>)\s*[^(){};]+)?)?' #combinación lógica uso de and o or
-        r')\s*\)\s*\{', #cierre de condición y la llave {
+        r'[a-zA-Z_]\w*'  # una sola variable también es válida
+        r'(\s*(==|!=|<=|>=|<|>)\s*[^(){};]+)?'  # posible comparación
+        r'(\s*(\&\&|\|\|)\s*[a-zA-Z_]\w*(\s*(==|!=|<=|>=|<|>)\s*[^(){};]+)?)?'  # combinación lógica
+        r')\s*\)\s*\{',
         re.IGNORECASE
     )
 
     for i, linea in enumerate(lineas, 1):
         linea_strip = linea.strip()
-        if linea_strip.startswith("if"):
-            if not validacion.match(linea_strip):
+        if linea_strip.startswith("if"): #debe comenzar con if la linea
+            m = validacion.match(linea_strip)
+            if not m:
                 errores_if.append(f"Error: La expresión if es incorrecta en la línea: {i}.")
-
+                continue
+            condicion = m.group(1)
+            for token in re.findall(r'\b[a-zA-Z_]\w*\b', condicion):
+                if token not in variables and token not in ["true","false"]:
+                    errores_if.append(f"Error: La variable '{token}' no está declaradaaa, línea :{i}.")
     return errores_if
+
+def validar_while(lineas): #para validar los while
+    errores_while = []
+
+    validacion = re.compile(
+        r'while\s*\(\s*(.+?)\s*\)\s*\{',
+        re.IGNORECASE
+    )
+
+    for i, linea in enumerate(lineas, 1):
+        linea_strip = linea.strip()
+        if linea_strip.startswith("while"): #debe comenzar con while la linea
+            m = validacion.match(linea_strip)
+            if not m:
+                errores_while.append(f"Error: La expresión while es incorrecta en la línea: {i}.")
+                continue
+            condicion = m.group(1)
+            for token in re.findall(r'\b[a-zA-Z_]\w*\b', condicion):
+                if token not in variables and token not in ["true","false"]:
+                    errores_while.append(f"Error: La variable '{token}' no está declarada, línea: {i}.")
+    return errores_while
     
 
 def variable_valida(nombre, ln_err): #variable aceptable, se le manda la variable o lo que se pueda considerar como una y la linea donde se encuentra 
@@ -421,11 +483,13 @@ class CompiladorVSCode(QMainWindow):
         errores_cadenas, lineas = validar_cadenas(lineas)#se manda a llamar la funcion que checa si hay cadenas sin cerrar
         errores.extend(errores_cadenas)#se añaden las lineas de error que se encontraron
 
+        errores.extend(validar_declaraciones(lineas))#se buscan las malas declaraciones de variables
+
         errores.extend(validar_for(lineas))#se buscan los for mal hechos
 
         errores.extend(validar_if(lineas))#se buscan los if mal hechos
 
-        errores.extend(validar_declaraciones(lineas))#se buscan las malas declaraciones de variables
+        errores.extend(validar_while(lineas))#se buscan los if mal hechos
 
         errores.extend(validar_main(lineas))
 
